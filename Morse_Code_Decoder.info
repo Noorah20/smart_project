@@ -1,0 +1,146 @@
+#include <LiquidCrystal.h>
+
+const int rs = 12, en = 11, d4 = 5, d5 = 4, d6 = 3, d7 = 2;
+LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
+
+const int inputPin = 7;
+const int sendPin = 6;
+const int buzzerPin = 8;
+const int ledPin = 13;
+
+const int dotDuration = 200;
+const int dashDuration = dotDuration * 3;
+const int elementSpacer = dotDuration;
+const int letterSpacer = dotDuration * 3;
+
+String currentCode = "";
+String textResult = "";
+
+const String morseAlphabet[] = {
+  ".-", "-...", "-.-.", "-..", ".", "..-.", "--.", "....", "..",
+  ".---", "-.-", ".-..", "--", "-.", "---", ".--.", "--.-", ".-.",
+  "...", "-", "..-", "...-", ".--", "-..-", "-.--", "--.."
+};
+
+char decodeMorse(String morse) {
+  for (int i = 0; i < 26; i++) {
+    if (morseAlphabet[i] == morse) {
+      return (char)('A' + i);
+    }
+  }
+  return '?';
+}
+
+void playFinalMessage(String msg) {
+  for (int i = 0; i < msg.length(); i++) {
+    char c = msg[i];
+
+    if (c >= 'A' && c <= 'Z') {
+      String morseCode = morseAlphabet[c - 'A'];
+
+      for (int j = 0; j < morseCode.length(); j++) {
+        if (morseCode[j] == '.') {
+          tone(buzzerPin, 1000);
+          digitalWrite(ledPin, HIGH);
+          delay(dotDuration);
+        } else if (morseCode[j] == '-') {
+          tone(buzzerPin, 1000);
+          digitalWrite(ledPin, HIGH);
+          delay(dashDuration);
+        }
+
+        noTone(buzzerPin);
+        digitalWrite(ledPin, LOW);
+        delay(elementSpacer);
+      }
+
+      delay(letterSpacer - elementSpacer);
+    }
+  }
+}
+
+void setup() {
+  pinMode(inputPin, INPUT_PULLUP);
+  pinMode(sendPin, INPUT_PULLUP);
+  pinMode(buzzerPin, OUTPUT);
+  pinMode(ledPin, OUTPUT);
+
+  lcd.begin(16, 2);
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Ready to read...");
+}
+
+void loop() {
+
+  if (digitalRead(inputPin) == LOW) {
+
+    unsigned long startTime = millis();
+
+    while (digitalRead(inputPin) == LOW);
+
+    unsigned long duration = millis() - startTime;
+
+    if (duration < 300) {
+      currentCode += ".";
+    } else {
+      currentCode += "-";
+    }
+
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Code: " + currentCode);
+
+    lcd.setCursor(0, 1);
+    lcd.print("Text: " + textResult);
+
+    delay(200);
+  }
+
+  if (digitalRead(sendPin) == LOW) {
+
+    unsigned long sendStartTime = millis();
+    bool longPress = false;
+
+    while (digitalRead(sendPin) == LOW) {
+
+      if ((millis() - sendStartTime) > 400) {
+        longPress = true;
+
+        tone(buzzerPin, 1000);
+        digitalWrite(ledPin, HIGH);
+      }
+    }
+
+    noTone(buzzerPin);
+    digitalWrite(ledPin, LOW);
+
+    if (!longPress) {
+
+      if (currentCode != "") {
+
+        char decodedChar = decodeMorse(currentCode);
+
+        textResult += decodedChar;
+
+        currentCode = "";
+
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print("Text: " + textResult);
+
+      } else {
+
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print("Final: " + textResult);
+
+        playFinalMessage(textResult);
+
+        textResult = "";
+      }
+    }
+
+    delay(200);
+  }
+}
